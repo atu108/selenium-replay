@@ -34,8 +34,6 @@ def runner(selenium_file):
         "class": "class name",
         "tag": "tag name"
     }
-
-    proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
     # with open('test.side') as f:
     print(os.path.join(app.config['UPLOAD_FOLDER'], selenium_file))
     with open(os.path.join(app.config['UPLOAD_FOLDER'], selenium_file)) as f:
@@ -44,6 +42,7 @@ def runner(selenium_file):
     # directory = data['name']
     # if not os.path.exists(directory):
     #     os.makedirs(directory)
+    proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
     driver.get(data['url'] + data['tests'][0]['commands'][0]['target'])
     har_data = proxy.har
     if len(har_data['log']['entries']) > 0:
