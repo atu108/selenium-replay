@@ -54,7 +54,7 @@ def runner(selenium_file):
     i = 0
     for obj in data['tests'][0]['commands']:
         i = i + 1
-        print("commands executed  " + i)
+        print("commands executed  " + str(i))
         proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
         if obj['command'] == 'click':
             driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1]).click()
