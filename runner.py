@@ -4,9 +4,11 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 import os
 from flask import Flask
+from xvfbwrapper import Xvfb
 app = Flask(__name__)
 UPLOAD_FOLDER = './uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 
 
 def runner(selenium_file):
@@ -18,6 +20,8 @@ def runner(selenium_file):
     server.start()
     proxy = server.create_proxy()
     profile = webdriver.FirefoxProfile()
+    display = Xvfb()
+    display.start()
     profile.set_proxy(proxy.selenium_proxy())
     driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
     driver.set_page_load_timeout(20)
@@ -71,4 +75,5 @@ def runner(selenium_file):
     server.stop()
     print("har files generated")
     driver.quit()
+    display.stop()
     return har_arr
