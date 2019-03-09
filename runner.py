@@ -20,8 +20,8 @@ def runner(selenium_file):
     server.start()
     proxy = server.create_proxy()
     profile = webdriver.FirefoxProfile()
-    # display = Xvfb()
-    # display.start()
+    display = Xvfb()
+    display.start()
     profile.set_proxy(proxy.selenium_proxy())
     driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
     # driver.set_page_load_timeout(20)
@@ -73,5 +73,5 @@ def runner(selenium_file):
     server.stop()
     print("har files generated")
     driver.quit()
-    # display.stop()
+    display.stop()
     return har_arr
