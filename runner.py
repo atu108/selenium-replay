@@ -20,8 +20,8 @@ def runner(selenium_file):
     server.start()
     proxy = server.create_proxy()
     profile = webdriver.FirefoxProfile()
-    display = Xvfb()
-    display.start()
+    # display = Xvfb()
+    # display.start()
     profile.set_proxy(proxy.selenium_proxy())
     driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
     # driver.set_page_load_timeout(20)
@@ -41,23 +41,22 @@ def runner(selenium_file):
     with open(os.path.join(app.config['UPLOAD_FOLDER'], selenium_file)) as f:
         data = json.load(f)
     # data = json.load(selenium_file)
-    print("data")
-    print(data)
     # directory = data['name']
     # if not os.path.exists(directory):
     #     os.makedirs(directory)
     driver.get(data['url'] + data['tests'][0]['commands'][0]['target'])
     har_data = proxy.har
     if len(har_data['log']['entries']) > 0:
-        print(har_data)
         har_arr['launch'] = har_data
         # fo = open("./" + directory + "/launch.har", "w")
         # fo.write(json.dumps(har_data))
         # fo.close()
+    i = 0
     for obj in data['tests'][0]['commands']:
+        i = i + 1
+        print("commands executed  " + i)
         proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
         if obj['command'] == 'click':
-            print('click found')
             driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1]).click()
             har_data = proxy.har
             if len(har_data['log']['entries']) > 0:
@@ -66,7 +65,6 @@ def runner(selenium_file):
                 # fo.write(json.dumps(har_data))
                 # fo.close()
         if obj['command'] == 'type':
-            print("type found")
             driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(obj['value'])
         if obj['command'] == 'select' or obj['command'] == 'addSelection':
             select = Select(driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]))
@@ -75,5 +73,5 @@ def runner(selenium_file):
     server.stop()
     print("har files generated")
     driver.quit()
-    display.stop()
+    # display.stop()
     return har_arr
