@@ -24,7 +24,7 @@ def runner(selenium_file):
     display.start()
     profile.set_proxy(proxy.selenium_proxy())
     driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
-    driver.set_page_load_timeout(20)
+    # driver.set_page_load_timeout(20)
     print("reached downwards")
     selector_map = {
         "id": "id",
