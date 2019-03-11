@@ -2,11 +2,14 @@ from browsermobproxy import Server
 import json
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 import os
 from flask import Flask
 from xvfbwrapper import Xvfb
 app = Flask(__name__)
-UPLOAD_FOLDER = './uploads'
+UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 
@@ -32,7 +35,8 @@ def runner(selenium_file):
         "name": "name",
         "css": "css selector",
         "class": "class name",
-        "tag": "tag name"
+        "tag": "tag name",
+        "linkText": "link text"
     }
     # with open('test.side') as f:
     print(os.path.join(os.getcwd(),app.config['UPLOAD_FOLDER'], selenium_file))
@@ -56,6 +60,12 @@ def runner(selenium_file):
         print("commands executed  " + str(i))
         proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
         if obj['command'] == 'click':
+            timeout = 30
+            try:
+                element_present = EC.presence_of_element_located((selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1] ))
+                WebDriverWait(driver, timeout).until(element_present)
+            except TimeoutException:
+                continue
             element = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
             file_name = element.get_attribute('innerHTML')
             har_data = proxy.har
