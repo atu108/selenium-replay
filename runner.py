@@ -35,8 +35,8 @@ def runner(selenium_file):
         "tag": "tag name"
     }
     # with open('test.side') as f:
-    print(os.path.join(app.config['UPLOAD_FOLDER'], selenium_file))
-    with open(os.path.join(app.config['UPLOAD_FOLDER'], selenium_file)) as f:
+    print(os.path.join(os.getcwd(),app.config['UPLOAD_FOLDER'], selenium_file))
+    with open(os.path.join(os.getcwd(),app.config['UPLOAD_FOLDER'], selenium_file)) as f:
         data = json.load(f)
     # data = json.load(selenium_file)
     # directory = data['name']
@@ -56,10 +56,11 @@ def runner(selenium_file):
         print("commands executed  " + str(i))
         proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
         if obj['command'] == 'click':
-            driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1]).click()
+            element = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
+            file_name = element.get_attribute('innerHTML')
             har_data = proxy.har
             if len(har_data['log']['entries']) > 0:
-                har_arr[obj['target'].split('=')[1]] = har_data
+                har_arr[file_name] = har_data
                 # fo = open("./" + directory + "/" + obj['target'].split('=')[1] + ".har", "w")
                 # fo.write(json.dumps(har_data))
                 # fo.close()
