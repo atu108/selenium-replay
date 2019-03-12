@@ -4,14 +4,15 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 import os
 from flask import Flask
 from xvfbwrapper import Xvfb
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
 
 
 def runner(selenium_file):
@@ -55,19 +56,30 @@ def runner(selenium_file):
         # fo.write(json.dumps(har_data))
         # fo.close()
     i = 0
+    driver.implicitly_wait(20)
     for obj in data['tests'][0]['commands']:
         i = i + 1
         print("commands executed  " + str(i))
         proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
-        if obj['command'] == 'click':
-            timeout = 30
+        if obj["command"] == 'mouseOver':
             try:
-                element_present = EC.presence_of_element_located((selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1] ))
-                WebDriverWait(driver, timeout).until(element_present)
-            except TimeoutException:
-                continue
-            element = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
+                ele = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
+            except NoSuchElementException:
+                ele = driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1])
+            hover = ActionChains(driver).move_to_element(ele)
+            hover.perform()
+        if obj['command'] == 'click':
+            try:
+                element = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
+            except NoSuchElementException:
+                print("first failed to click")
+                element = driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1])
             file_name = element.get_attribute('innerHTML')
+            try:
+                element.click()
+            except ElementClickInterceptedException:
+                driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]],
+                                    obj['targets'][-1][0].split('=')[1]).click()
             har_data = proxy.har
             if len(har_data['log']['entries']) > 0:
                 har_arr[file_name] = har_data
@@ -75,10 +87,25 @@ def runner(selenium_file):
                 # fo.write(json.dumps(har_data))
                 # fo.close()
         if obj['command'] == 'type':
-            driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(obj['value'])
+            try:
+                driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(obj['value'])
+            except NoSuchElementException:
+                driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]).send_keys(
+                    obj['value'])
         if obj['command'] == 'select' or obj['command'] == 'addSelection':
-            select = Select(driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]))
+            try:
+                select = Select(driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]))
+            except NoSuchElementException:
+                select = Select(
+                    driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]))
             select.select_by_visible_text(obj['value'].split('=')[1])
+        if obj['command'] == 'sendKeys':
+            try:
+                driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(Keys.ENTER)
+            except NoSuchElementException:
+                driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]).send_keys(
+                    Keys.ENTER)
+
 
     server.stop()
     print("har files generated")
