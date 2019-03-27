@@ -11,22 +11,29 @@ import os
 import re
 from flask import Flask
 from collections import OrderedDict
-from xvfbwrapper import Xvfb
+from bs4 import BeautifulSoup
+import tldextract
+# from xvfbwrapper import Xvfb
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+excluded_url = [
+    'mozilla',
+    'googlesyndication.com'
+]
 
 
-def runner(selenium_file):
+def runner(data, file, url):
     print("reached inside runner")
     har_arr = OrderedDict()
+    select_arr = []
     server = Server("./browsermob-proxy-2.1.4/bin/browsermob-proxy")
     print("included proxy")
     server.start()
     proxy = server.create_proxy()
     profile = webdriver.FirefoxProfile()
-    display = Xvfb()
-    display.start()
+    # display = Xvfb()
+    # display.start()
     profile.set_proxy(proxy.selenium_proxy())
     driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
     # driver.set_page_load_timeout(20)
@@ -40,25 +47,24 @@ def runner(selenium_file):
         "tag": "tag name",
         "linkText": "link text"
     }
-    # with open('test.side') as f:
-    print(os.path.join(os.getcwd(),app.config['UPLOAD_FOLDER'], selenium_file))
-    with open(os.path.join(os.getcwd(),app.config['UPLOAD_FOLDER'], selenium_file)) as f:
-        data = json.load(f)
-    # data = json.load(selenium_file)
-    # directory = data['name']
-    # if not os.path.exists(directory):
-    #     os.makedirs(directory)
+    print("testing data", data)
     proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
-    driver.get(data['url'] + data['tests'][0]['commands'][0]['target'])
+    driver.get( url )
     har_data = proxy.har
+    prev_har_seq = 0
     if len(har_data['log']['entries']) > 0:
-        har_arr['launch'] = har_data
-        # fo = open("./" + directory + "/launch.har", "w")
-        # fo.write(json.dumps(har_data))
-        # fo.close()
+        # for entry in har_data['log']['entries']:
+        #     test_urls = entry.request.url.split('?')[0]
+        #     parsed_url = tldextract.extract('test_urls')
+        #     if
+        har_arr['launch'] = {
+            "har_data" : har_data,
+            "sequence": prev_har_seq + 1
+        }
+        prev_har_seq = prev_har_seq + 1
     i = 0
     try:
-        for obj in data['tests'][0]['commands']:
+        for obj in data:
             i = i + 1
             print("commands executed  " + str(i))
             proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
@@ -85,11 +91,12 @@ def runner(selenium_file):
                     driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]],
                                         obj['targets'][-1][0].split('=')[1]).click()
                 har_data = proxy.har
-                if len(har_data['log']['entries']) > 0:
-                    har_arr[file_name] = har_data
-                    # fo = open("./" + directory + "/" + obj['target'].split('=')[1] + ".har", "w")
-                    # fo.write(json.dumps(har_data))
-                    # fo.close()
+                # if len(har_data['log']['entries']) > 0:
+                har_arr[file_name] = {
+                    "har_data": har_data,
+                    "sequence": prev_har_seq + 1
+                }
+                prev_har_seq = prev_har_seq + 1
             if obj['command'] == 'type':
                 try:
                     driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(obj['value'])
@@ -103,6 +110,15 @@ def runner(selenium_file):
                     select = Select(
                         driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]))
                 select.select_by_visible_text(obj['value'].split('=')[1])
+                soup = BeautifulSoup(driver.page_source, "html.parser")
+                options = soup.find('select', {obj['target'].split('=')[0]: obj['target'].split('=')[1]}).find_all('option')
+                temp_arr = []
+                for op in options:
+                    temp_arr.append(op.text)
+                select_arr.append({
+                    "options": temp_arr,
+                    "selenium_step": obj["_id"]
+                })
             if obj['command'] == 'sendKeys':
                 try:
                     driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(Keys.ENTER)
@@ -110,12 +126,14 @@ def runner(selenium_file):
                     driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]).send_keys(
                         Keys.ENTER)
     except Exception as e:
+        print(e)
+        driver.get_screenshot_as_file('screenshots/error_' + file.split('.')[0] + '_step_' + str(i) + '.png')
         server.stop()
         driver.quit()
-        display.stop()
-        return {"status":"failed", "message": "Something Went wrong", "error": e}
+        # display.stop()
+        return {"status":"failed", "message": "Something Went wrong"}
     server.stop()
     print("har files generated")
     driver.quit()
-    display.stop()
-    return {"status":"success", "hars": dict(har_arr)}
+    # display.stop()
+    return {"success": True, "hars": dict(har_arr), "select": select_arr}

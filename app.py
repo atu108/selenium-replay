@@ -14,18 +14,26 @@ def hello():
     return "Hello World!"
 
 
-@app.route('/upload', methods=['GET', 'POST'])
+@app.route('/generatehar', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
-        file = request.files['file']
+        try:
+            file = request.files['file']
+        except:
+            file = None
         if file:
-            print(file)
             filename = secure_filename(file.filename)
             # print(filename)
-            # file_data = file.read()
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            return jsonify(runner(file.filename))
-
+            file_data = json.loads(file.read())
+            url = file_data['url'] + file_data['tests'][0]['commands'][0]['target']
+            # file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            return jsonify(runner(file_data, filename, url))
+        else:
+            form_data = request.json
+            filename = form_data["filename"]
+            commands = form_data["data"]
+            url = form_data["url"]
+            return jsonify(runner(commands, filename, url))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=4040, debug= True)
