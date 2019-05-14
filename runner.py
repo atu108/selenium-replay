@@ -13,7 +13,7 @@ from flask import Flask
 from collections import OrderedDict
 from bs4 import BeautifulSoup
 import tldextract
-# from xvfbwrapper import Xvfb
+from xvfbwrapper import Xvfb
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -23,7 +23,7 @@ excluded_url = [
 ]
 
 
-def runner(data, file, url):
+def runner(data, file, url, saveDropdown):
     print("reached inside runner")
     har_arr = OrderedDict()
     select_arr = []
@@ -32,8 +32,8 @@ def runner(data, file, url):
     server.start()
     proxy = server.create_proxy()
     profile = webdriver.FirefoxProfile()
-    # display = Xvfb()
-    # display.start()
+    display = Xvfb()
+    display.start()
     profile.set_proxy(proxy.selenium_proxy())
     driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
     # driver.set_page_load_timeout(20)
@@ -107,18 +107,20 @@ def runner(data, file, url):
                 try:
                     select = Select(driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]))
                 except NoSuchElementException:
+                    print("inside no such element")
                     select = Select(
                         driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]))
                 select.select_by_visible_text(obj['value'].split('=')[1])
-                soup = BeautifulSoup(driver.page_source, "html.parser")
-                options = soup.find('select', {obj['target'].split('=')[0]: obj['target'].split('=')[1]}).find_all('option')
-                temp_arr = []
-                for op in options:
-                    temp_arr.append(op.text)
-                select_arr.append({
-                    "options": temp_arr,
-                    "selenium_step": obj["_id"]
-                })
+                if saveDropdown:
+                    soup = BeautifulSoup(driver.page_source, "html.parser")
+                    options = soup.find('select', {obj['target'].split('=')[0]: obj['target'].split('=')[1]}).find_all('option')
+                    temp_arr = []
+                    for op in options:
+                        temp_arr.append(op.text)
+                        select_arr.append({
+                            "options": temp_arr,
+                            "selenium_step": obj["_id"]
+                        })
             if obj['command'] == 'sendKeys':
                 try:
                     driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(Keys.ENTER)
@@ -130,10 +132,10 @@ def runner(data, file, url):
         driver.get_screenshot_as_file('screenshots/error_' + file.split('.')[0] + '_step_' + str(i) + '.png')
         server.stop()
         driver.quit()
-        # display.stop()
+        display.stop()
         return {"status":"failed", "message": "Something Went wrong"}
     server.stop()
     print("har files generated")
     driver.quit()
-    # display.stop()
+    display.stop()
     return {"success": True, "hars": dict(har_arr), "select": select_arr}
