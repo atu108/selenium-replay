@@ -4,7 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
+from selenium.common.exceptions import *
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 import os
@@ -12,6 +12,8 @@ import re
 from flask import Flask
 from collections import OrderedDict
 from bs4 import BeautifulSoup
+import time
+
 import tldextract
 from xvfbwrapper import Xvfb
 app = Flask(__name__)
@@ -21,6 +23,41 @@ excluded_url = [
     'mozilla',
     'googlesyndication.com'
 ]
+selector_map = {
+    "id": "id",
+    "xpath": "xpath",
+    "name": "name",
+    "css": "css selector",
+    "class": "class name",
+    "tag": "tag name",
+    "linkText": "link text"
+}
+
+
+def get_x_path_relative(targets):
+    temp = ''
+    for t in targets:
+        if t[1] == "xpath:position":
+            return t
+        elif t[1] == "css:finder":
+            temp = t
+    return temp
+
+
+def try_all_paths(targets, driver):
+    if len(targets) == 0:
+        return False
+    wait = WebDriverWait(driver, 10, poll_frequency=1,
+                         ignored_exceptions=[])
+    try:
+        return wait.until(EC.element_to_be_clickable((selector_map[targets[-1][0].split('=')[0]],
+                                                         targets[-1][0].split('=')[1])))
+    except Exception as e:
+        print(len(targets), e)
+        try_all_paths(targets[:-1], driver)
+
+
+mouseOverScript = "if(document.createEvent){var evObj = document.createEvent('MouseEvents');evObj.initEvent('mouseover',true, false); arguments[0].dispatchEvent(evObj);} else if(document.createEventObject) { arguments[0].fireEvent('onmouseover');}"
 
 
 def runner(data, file, url, saveDropdown):
@@ -36,20 +73,12 @@ def runner(data, file, url, saveDropdown):
     display.start()
     profile.set_proxy(proxy.selenium_proxy())
     driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
+    driver.maximize_window()
     # driver.set_page_load_timeout(20)
     print("reached downwards")
-    selector_map = {
-        "id": "id",
-        "xpath": "xpath",
-        "name": "name",
-        "css": "css selector",
-        "class": "class name",
-        "tag": "tag name",
-        "linkText": "link text"
-    }
     print("testing data", data)
     proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
-    driver.get( url )
+    driver.get(url)
     har_data = proxy.har
     prev_har_seq = 0
     if len(har_data['log']['entries']) > 0:
@@ -58,7 +87,7 @@ def runner(data, file, url, saveDropdown):
         #     parsed_url = tldextract.extract('test_urls')
         #     if
         har_arr['launch'] = {
-            "har_data" : har_data,
+            "har_data": har_data,
             "sequence": prev_har_seq + 1
         }
         prev_har_seq = prev_har_seq + 1
@@ -66,30 +95,42 @@ def runner(data, file, url, saveDropdown):
     try:
         for obj in data:
             i = i + 1
-            print("commands executed  " + str(i))
+            relativeOrPosXPath = get_x_path_relative(obj["targets"])
             proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
             if obj["command"] == 'mouseOver':
+                time.sleep(5)
                 try:
                     ele = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
                 except NoSuchElementException:
-                    ele = driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1])
-                hover = ActionChains(driver).move_to_element(ele)
-                hover.perform()
+                    ele = driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
+                                              relativeOrPosXPath[0].split('=')[1])
+                driver.execute_script("arguments[0].scrollIntoView()", ele)
+                driver.execute_script(mouseOverScript, ele)
             if obj['command'] == 'click':
-                try:
-                    element = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
-                except NoSuchElementException:
-                    print("first failed to click")
-                    element = driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1])
+                time.sleep(10)
+                # wait = WebDriverWait(driver, 10, poll_frequency=1,
+                #                      ignored_exceptions=[])
+                # try:
+                #     element = wait.until(EC.element_to_be_clickable((selector_map[relativeOrPosXPath[0].split('=')[0]],
+                #                                                      relativeOrPosXPath[0].split('=')[1])))
+                # except Exception as e:
+                #     print("called in exception click", e)
+                #     element = wait.until(EC.element_to_be_clickable((selector_map[obj['target'].split('=')[0]],
+                #                                                      obj['target'].split('=')[1])))
+                element = try_all_paths(obj['targets'], driver)
+                print(element)
+                if element is False:
+                    print("not found any")
                 file_name = element.get_attribute('innerHTML')
                 if file_name == '' or not re.match(r'^\w+$', file_name.replace(" ", '_')):
                     file_name = 'Step_' + str(i)
-
-                try:
-                    element.click()
-                except ElementClickInterceptedException:
-                    driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]],
-                                        obj['targets'][-1][0].split('=')[1]).click()
+                # try:
+                driver.execute_script("arguments[0].scrollIntoView()", element)
+                print(driver.window_handles[0])
+                driver.execute_script("arguments[0].click()", element)
+                # except ElementClickInterceptedException:
+                #     driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
+                #                         relativeOrPosXPath[0].split('=')[1]).click()
                 har_data = proxy.har
                 # if len(har_data['log']['entries']) > 0:
                 har_arr[file_name] = {
@@ -99,21 +140,28 @@ def runner(data, file, url, saveDropdown):
                 prev_har_seq = prev_har_seq + 1
             if obj['command'] == 'type':
                 try:
-                    driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(obj['value'])
+
+                    ele = driver.find_element(selector_map[obj['target'].split('=')[0]],
+                                              obj['target'].split('=')[1])
                 except NoSuchElementException:
-                    driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]).send_keys(
-                        obj['value'])
+                    ele = driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
+                                              relativeOrPosXPath[0].split('=')[1])
+                ele.clear()
+                ele.send_keys(obj['value'])
             if obj['command'] == 'select' or obj['command'] == 'addSelection':
                 try:
-                    select = Select(driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]))
+                    select = Select(
+                        driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1]))
                 except NoSuchElementException:
                     print("inside no such element")
                     select = Select(
-                        driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]))
+                        driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
+                                            relativeOrPosXPath[0].split('=')[1]))
                 select.select_by_visible_text(obj['value'].split('=')[1])
                 if saveDropdown:
                     soup = BeautifulSoup(driver.page_source, "html.parser")
-                    options = soup.find('select', {obj['target'].split('=')[0]: obj['target'].split('=')[1]}).find_all('option')
+                    options = soup.find('select', {obj['target'].split('=')[0]: obj['target'].split('=')[1]}).find_all(
+                        'option')
                     temp_arr = []
                     for op in options:
                         temp_arr.append(op.text)
@@ -123,17 +171,22 @@ def runner(data, file, url, saveDropdown):
                         })
             if obj['command'] == 'sendKeys':
                 try:
-                    driver.find_element(selector_map[obj['target'].split('=')[0]],obj['target'].split('=')[1]).send_keys(Keys.ENTER)
+                    driver.find_element(selector_map[obj['target'].split('=')[0]],
+                                        obj['target'].split('=')[1]).send_keys(Keys.ENTER)
                 except NoSuchElementException:
-                    driver.find_element(selector_map[obj['targets'][-1][0].split('=')[0]], obj['targets'][-1][0].split('=')[1]).send_keys(
+                    driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
+                                        relativeOrPosXPath[0].split('=')[1]).send_keys(
                         Keys.ENTER)
+            if obj['command'] == "selectWindow":
+                print("switched window", driver.window_handles[1])
+                driver.switch_to.window(driver.window_handles[-1])
     except Exception as e:
         print(e)
         driver.get_screenshot_as_file('screenshots/error_' + file.split('.')[0] + '_step_' + str(i) + '.png')
         server.stop()
         driver.quit()
         display.stop()
-        return {"status":"failed", "message": "Something Went wrong"}
+        return {"status": "failed", "message": "Something Went wrong"}
     server.stop()
     print("har files generated")
     driver.quit()
