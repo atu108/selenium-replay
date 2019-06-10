@@ -33,6 +33,21 @@ selector_map = {
     "linkText": "link text"
 }
 
+form_elements = ["<input", "<select"]
+
+
+def get_transaction_name(element):
+    element_html = element.get_attribute("outerHTML")
+    tag_name = element_html.split(" ",1)[0]
+    print(tag_name)
+    if tag_name in form_elements:
+        if element.get_attribute("type") == 'submit':
+            return element.get_attribute("value")
+        else:
+            return element.get_attribute("name")
+    else:
+        return element.text
+
 
 def get_x_path_relative(targets):
     temp = ''
@@ -51,14 +66,14 @@ def try_all_paths(targets, driver):
                          ignored_exceptions=[])
     try:
         return wait.until(EC.element_to_be_clickable((selector_map[targets[-1][0].split('=')[0]],
-                                                         targets[-1][0].split('=')[1])))
+                                                      targets[-1][0].split('=')[1])))
     except Exception as e:
         print(len(targets), e)
         try_all_paths(targets[:-1], driver)
 
 
 mouseOverScript = "if(document.createEvent){var evObj = document.createEvent('MouseEvents');evObj.initEvent('mouseover',true, false); arguments[0].dispatchEvent(evObj);} else if(document.createEventObject) { arguments[0].fireEvent('onmouseover');}"
-
+performance_data = "var performance = window.performance || window.webkitPerformance || window.mozPerformance || window.msPerformance || {};var timings = performance.timing || {};return timings;"
 
 def runner(data, file, url, saveDropdown):
     print("reached inside runner")
@@ -108,31 +123,16 @@ def runner(data, file, url, saveDropdown):
                 driver.execute_script(mouseOverScript, ele)
             if obj['command'] == 'click':
                 time.sleep(10)
-                # wait = WebDriverWait(driver, 10, poll_frequency=1,
-                #                      ignored_exceptions=[])
-                # try:
-                #     element = wait.until(EC.element_to_be_clickable((selector_map[relativeOrPosXPath[0].split('=')[0]],
-                #                                                      relativeOrPosXPath[0].split('=')[1])))
-                # except Exception as e:
-                #     print("called in exception click", e)
-                #     element = wait.until(EC.element_to_be_clickable((selector_map[obj['target'].split('=')[0]],
-                #                                                      obj['target'].split('=')[1])))
                 element = try_all_paths(obj['targets'], driver)
-                print(element)
-                if element is False:
-                    print("not found any")
-                file_name = element.get_attribute('innerHTML')
-                if file_name == '' or not re.match(r'^\w+$', file_name.replace(" ", '_')):
+                file_name = get_transaction_name(element)
+                if file_name == '' or None or not re.match(r'^\w+$', file_name.replace(" ", '_')):
                     file_name = 'Step_' + str(i)
                 # try:
                 driver.execute_script("arguments[0].scrollIntoView()", element)
                 print(driver.window_handles[0])
                 driver.execute_script("arguments[0].click()", element)
-                # except ElementClickInterceptedException:
-                #     driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
-                #                         relativeOrPosXPath[0].split('=')[1]).click()
+                print("perfromance data ", driver.execute_script(performance_data))
                 har_data = proxy.har
-                # if len(har_data['log']['entries']) > 0:
                 har_arr[file_name] = {
                     "har_data": har_data,
                     "sequence": prev_har_seq + 1
