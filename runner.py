@@ -75,6 +75,7 @@ def try_all_paths(targets, driver):
 mouseOverScript = "if(document.createEvent){var evObj = document.createEvent('MouseEvents');evObj.initEvent('mouseover',true, false); arguments[0].dispatchEvent(evObj);} else if(document.createEventObject) { arguments[0].fireEvent('onmouseover');}"
 performance_data = "var performance = window.performance || window.webkitPerformance || window.mozPerformance || window.msPerformance || {};var timings = performance.timing || {};return timings;"
 
+
 def runner(data, file, url, saveDropdown):
     print("reached inside runner")
     har_arr = OrderedDict()
@@ -91,7 +92,7 @@ def runner(data, file, url, saveDropdown):
     driver.maximize_window()
     # driver.set_page_load_timeout(20)
     print("reached downwards")
-    print("testing data", data)
+    # print("testing data", data)
     proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
     driver.get(url)
     har_data = proxy.har
