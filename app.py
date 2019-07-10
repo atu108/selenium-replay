@@ -4,6 +4,7 @@ from runner import runner
 import os
 import json
 from flask import jsonify
+from gevent.pywsgi import WSGIServer
 app = Flask(__name__)
 UPLOAD_FOLDER = './uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -36,4 +37,5 @@ def upload_file():
             return jsonify(runner(commands, filename, url, form_data["saveDropdown"]))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=4040, debug= True)
+    http_server = WSGIServer(('0.0.0.0', 4040), app)
+    http_server.serve_forever()
