@@ -65,30 +65,36 @@ def try_all_paths(targets, driver):
     wait = WebDriverWait(driver, 10, poll_frequency=1,
                          ignored_exceptions=[])
     try:
-        return wait.until(EC.element_to_be_clickable((selector_map[targets[-1][0].split('=')[0]],
+        element = wait.until(EC.element_to_be_clickable((selector_map[targets[-1][0].split('=')[0]],
                                                       targets[-1][0].split('=')[1])))
+        print("targets", targets[-1][0].split('=')[1] )
+        print("before return", type(element))
+        return {"element": element, "remlen": len(targets)}
     except Exception as e:
-        print(len(targets), e)
-        try_all_paths(targets[:-1], driver)
-
+        print("targets length", len(targets), e)
+        return try_all_paths(targets[:-1], driver)
 
 mouseOverScript = "if(document.createEvent){var evObj = document.createEvent('MouseEvents');evObj.initEvent('mouseover',true, false); arguments[0].dispatchEvent(evObj);} else if(document.createEventObject) { arguments[0].fireEvent('onmouseover');}"
 performance_data = "var performance = window.performance || window.webkitPerformance || window.mozPerformance || window.msPerformance || {};var timings = performance.timing || {};return timings;"
 
 
-def runner(data, file, url, saveDropdown):
+def runner(data, file, url, saveDropdown, savePerformanceMatrix):
     print("reached inside runner")
     har_arr = OrderedDict()
+    performance_arr = OrderedDict()
     select_arr = []
     server = Server("./browsermob-proxy-2.1.4/bin/browsermob-proxy")
     print("included proxy")
     server.start()
     proxy = server.create_proxy()
-    profile = webdriver.FirefoxProfile()
+    # profile = webdriver.FirefoxProfile()
+    profile = webdriver.ChromeOptions()
     display = Xvfb()
     display.start()
-    profile.set_proxy(proxy.selenium_proxy())
-    driver = webdriver.Firefox(firefox_profile=profile, executable_path='./geckodriver')
+    # profile.set_proxy(proxy.selenium_proxy())
+    profile.add_argument('--proxy-server={host}:{port}'.format(host='localhost', port=proxy.port))
+    # driver = webdriver.Firefox(firefox_profile=profile, executable_path='./chromedriver')
+    driver = webdriver.Chrome(executable_path="./chromedriver", chrome_options=profile)
     driver.maximize_window()
     # driver.set_page_load_timeout(20)
     print("reached downwards")
@@ -107,6 +113,11 @@ def runner(data, file, url, saveDropdown):
             "sequence": prev_har_seq + 1
         }
         prev_har_seq = prev_har_seq + 1
+        performance_arr['launch'] = {
+            "perf_data": driver.execute_script(performance_data),
+            "sequence": prev_har_seq + 1
+        }
+
     i = 0
     try:
         for obj in data:
@@ -114,17 +125,22 @@ def runner(data, file, url, saveDropdown):
             relativeOrPosXPath = get_x_path_relative(obj["targets"])
             proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
             if obj["command"] == 'mouseOver':
-                time.sleep(5)
-                try:
-                    ele = driver.find_element(selector_map[obj['target'].split('=')[0]], obj['target'].split('=')[1])
-                except NoSuchElementException:
-                    ele = driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
-                                              relativeOrPosXPath[0].split('=')[1])
-                driver.execute_script("arguments[0].scrollIntoView()", ele)
-                driver.execute_script(mouseOverScript, ele)
-            if obj['command'] == 'click':
                 time.sleep(10)
-                element = try_all_paths(obj['targets'], driver)
+                ele = try_all_paths(obj['targets'], driver)
+                try:
+                    driver.execute_script("arguments[0].scrollIntoView()", ele)
+                    driver.execute_script(mouseOverScript, ele)
+                except Exception as e:
+                    continue
+            if obj['command'] == 'click' or obj['command'] == 'mouseDown':
+                time.sleep(10)
+                elementDetails = try_all_paths(obj['targets'], driver)
+                element = elementDetails['element']
+                if element is None:
+                    obj['targets'].pop(elementDetails['remlen'] - 1)
+                    elementDetails = try_all_paths(obj['targets'], driver)
+                    element = elementDetails['element']
+                print("elelement", type(element))
                 file_name = get_transaction_name(element)
                 if file_name == '' or None or not re.match(r'^\w+$', file_name.replace(" ", '_')):
                     file_name = 'Step_' + str(i)
@@ -133,12 +149,21 @@ def runner(data, file, url, saveDropdown):
                 print(driver.window_handles[0])
                 driver.execute_script("arguments[0].click()", element)
                 print("perfromance data ", driver.execute_script(performance_data))
+                perf_data = driver.execute_script(performance_data)
                 har_data = proxy.har
+                print(har_data)
                 har_arr[file_name] = {
                     "har_data": har_data,
                     "sequence": prev_har_seq + 1
                 }
+                performance_arr[file_name] = {
+                    "perf_data" : perf_data,
+                    "sequence": prev_har_seq + 1
+                }
                 prev_har_seq = prev_har_seq + 1
+            if obj['command'] == 'runScript':
+                # time.sleep(10)
+                driver.execute_script(obj['target'])
             if obj['command'] == 'type':
                 try:
 
@@ -192,4 +217,7 @@ def runner(data, file, url, saveDropdown):
     print("har files generated")
     driver.quit()
     display.stop()
-    return {"success": True, "hars": dict(har_arr), "select": select_arr}
+    if savePerformanceMatrix:
+        return {"success": True, "hars": dict(har_arr), "select": select_arr, "performance": dict(performance_arr)}
+    else:
+        return {"success": True, "hars": dict(har_arr), "select": select_arr, "performance": {}}

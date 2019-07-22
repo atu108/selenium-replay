@@ -34,7 +34,7 @@ def upload_file():
             filename = form_data["filename"]
             commands = form_data["data"]
             url = form_data["url"]
-            return jsonify(runner(commands, filename, url, form_data["saveDropdown"]))
+            return jsonify(runner(commands, filename, url, form_data["saveDropdown"], form_data['savePageTiming']))
 
 if __name__ == '__main__':
     http_server = WSGIServer(('0.0.0.0', 4040), app)
