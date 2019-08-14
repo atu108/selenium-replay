@@ -5,9 +5,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import *
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
-import os
 import re
 from flask import Flask
 from collections import OrderedDict
@@ -15,7 +13,7 @@ from bs4 import BeautifulSoup
 import time
 
 import tldextract
-from xvfbwrapper import Xvfb
+# from xvfbwrapper import Xvfb
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -68,7 +66,7 @@ def try_all_paths(targets, driver):
         element = wait.until(EC.element_to_be_clickable((selector_map[targets[-1][0].split('=')[0]],
                                                       targets[-1][0].split('=')[1])))
         print("targets", targets[-1][0].split('=')[1] )
-        print("before return", type(element))
+        print("before return", )
         return {"element": element, "remlen": len(targets)}
     except Exception as e:
         print("targets length", len(targets), e)
@@ -80,7 +78,7 @@ performance_data = "var performance = window.performance || window.webkitPerform
 
 def runner(data, file, url, saveDropdown, savePerformanceMatrix):
     print("reached inside runner")
-    har_arr = OrderedDict()
+    har_arr = []
     performance_arr = OrderedDict()
     select_arr = []
     server = Server("./browsermob-proxy-2.1.4/bin/browsermob-proxy")
@@ -89,8 +87,8 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
     proxy = server.create_proxy()
     # profile = webdriver.FirefoxProfile()
     profile = webdriver.ChromeOptions()
-    display = Xvfb()
-    display.start()
+    # display = Xvfb()
+    # display.start()
     # profile.set_proxy(proxy.selenium_proxy())
     profile.add_argument('--proxy-server={host}:{port}'.format(host='localhost', port=proxy.port))
     # driver = webdriver.Firefox(firefox_profile=profile, executable_path='./chromedriver')
@@ -108,10 +106,11 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
         #     test_urls = entry.request.url.split('?')[0]
         #     parsed_url = tldextract.extract('test_urls')
         #     if
-        har_arr['launch'] = {
+        har_arr.append({
+            "name": "launch",
             "har_data": har_data,
             "sequence": prev_har_seq + 1
-        }
+        })
         prev_har_seq = prev_har_seq + 1
         performance_arr['launch'] = {
             "perf_data": driver.execute_script(performance_data),
@@ -152,10 +151,11 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
                 perf_data = driver.execute_script(performance_data)
                 har_data = proxy.har
                 print(har_data)
-                har_arr[file_name] = {
+                har_arr.append({
+                    "name": file_name,
                     "har_data": har_data,
                     "sequence": prev_har_seq + 1
-                }
+                })
                 performance_arr[file_name] = {
                     "perf_data" : perf_data,
                     "sequence": prev_har_seq + 1
@@ -165,13 +165,9 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
                 # time.sleep(10)
                 driver.execute_script(obj['target'])
             if obj['command'] == 'type':
-                try:
-
-                    ele = driver.find_element(selector_map[obj['target'].split('=')[0]],
-                                              obj['target'].split('=')[1])
-                except NoSuchElementException:
-                    ele = driver.find_element(selector_map[relativeOrPosXPath[0].split('=')[0]],
-                                              relativeOrPosXPath[0].split('=')[1])
+                time.sleep(10)
+                elementDetails = try_all_paths(obj['targets'], driver)
+                ele = elementDetails['element']
                 ele.clear()
                 ele.send_keys(obj['value'])
             if obj['command'] == 'select' or obj['command'] == 'addSelection':
@@ -211,13 +207,13 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
         driver.get_screenshot_as_file('screenshots/error_' + file.split('.')[0] + '_step_' + str(i) + '.png')
         server.stop()
         driver.quit()
-        display.stop()
+        # display.stop()
         return {"status": "failed", "message": "Something Went wrong"}
     server.stop()
     print("har files generated")
     driver.quit()
-    display.stop()
+    # display.stop()
     if savePerformanceMatrix:
-        return {"success": True, "hars": dict(har_arr), "select": select_arr, "performance": dict(performance_arr)}
+        return {"success": True, "hars": har_arr, "select": select_arr, "performance": dict(performance_arr)}
     else:
-        return {"success": True, "hars": dict(har_arr), "select": select_arr, "performance": {}}
+        return {"success": True, "hars": har_arr, "select": select_arr, "performance": {}}
