@@ -1,5 +1,4 @@
 from browsermobproxy import Server
-import json
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
