@@ -83,20 +83,20 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
     server = Server("./browsermob-proxy-2.1.4/bin/browsermob-proxy")
     print("included proxy")
     server.start()
-    proxy = server.create_proxy()
+    proxy = server.create_proxy(params={'trustAllServers':'true'})
     # profile = webdriver.FirefoxProfile()
     profile = webdriver.ChromeOptions()
     # display = Xvfb()
     # display.start()
     # profile.set_proxy(proxy.selenium_proxy())
-    profile.add_argument('--proxy-server={host}:{port}'.format(host='localhost', port=proxy.port))
+    profile.add_argument('--ignore-certificate-errors --proxy-server={host}:{port}'.format(host='localhost', port=proxy.port))
     # driver = webdriver.Firefox(firefox_profile=profile, executable_path='./chromedriver')
     driver = webdriver.Chrome(executable_path="./chromedriver", chrome_options=profile)
     driver.maximize_window()
     # driver.set_page_load_timeout(20)
     print("reached downwards")
     # print("testing data", data)
-    proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
+    proxy.new_har("gtt", {"captureHeaders": True, "captureContent": True})
     driver.get(url)
     har_data = proxy.har
     prev_har_seq = 0
@@ -119,6 +119,7 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
     i = 0
     try:
         for obj in data:
+            print(data[i])
             i = i + 1
             relativeOrPosXPath = get_x_path_relative(obj["targets"])
             proxy.new_har("google", {"captureHeaders": True, "captureContent": True})
