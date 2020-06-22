@@ -86,6 +86,12 @@ def runner(data, file, url, saveDropdown, savePerformanceMatrix):
     proxy = server.create_proxy(params={'trustAllServers':'true'})
     # profile = webdriver.FirefoxProfile()
     profile = webdriver.ChromeOptions()
+    #profile.add_argument('--headless')
+    profile.add_argument('--no-sandbox')
+    profile.add_argument('--disable-dev-shm-usage')
+    from pyvirtualdisplay import Display
+    display = Display(visible=0, size=(1024, 768))
+    display.start()
     # display = Xvfb()
     # display.start()
     # profile.set_proxy(proxy.selenium_proxy())
